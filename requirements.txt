@@ -1,0 +1,15 @@
+fastapi>=0.115.0
+uvicorn>=0.30.0
+pydantic>=2.8.0
+pyyaml>=6.0.0
+redis>=5.0.1
+aio_pika>=9.3.1
+pandas>=2.2.0
+numpy>=1.26.0
+h3>=4.1.0
+scikit-learn>=1.4.0
+python-dateutil>=2.8.2
+pyarrow>=17.0.0
+jinja2>=3.1.0
+mlflow>=2.17.0
+torch>=2.4.0
