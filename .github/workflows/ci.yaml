@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          python-version: '3.11'
+
+      - name: Sync dependencies
+        run: uv sync --group dev
+
+      - name: Bytecode smoke test
+        run: uv run python -m compileall src
+
+      - name: Build Docker image
+        run: docker build -t pulsar-ci .

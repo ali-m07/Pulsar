@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from importlib import resources
 from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -14,9 +14,8 @@ from ..store import TimeSeriesStore
 def create_app(cfg: PulsarConfig) -> FastAPI:
     store = TimeSeriesStore(cfg.ensure_cache_dir() / "timeseries")
     forecaster = SimpleForecaster(store)
-    template_root = Path(__file__).resolve().parents[3]
-    template_path = template_root / "templates" / "forecast.html"
-    if not template_path.exists():
+    template_path = resources.files("pulsar_core").joinpath("templates/forecast.html")
+    if not template_path.is_file():
         raise FileNotFoundError(f"template not found: {template_path}")
     template_html = template_path.read_text(encoding="utf-8")
 
@@ -46,4 +45,3 @@ def create_app(cfg: PulsarConfig) -> FastAPI:
         return [item.as_dict() for item in results]
 
     return app
-
