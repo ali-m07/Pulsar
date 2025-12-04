@@ -1,36 +1,3 @@
-# Mode: "redis_rabbitmq" (legacy), "nats_clickhouse" (NATS + ClickHouse), or "clickhouse_only" (read-only from ClickHouse)
-mode: redis_rabbitmq
-
-# Legacy Redis/RabbitMQ configuration (required for mode: redis_rabbitmq)
-redis:
-  raw_master:
-    host: 127.0.0.1
-    port: 6379
-    db: 0
-  raw_slave:
-    host: 127.0.0.1
-    port: 6379
-    db: 0
-  prepared_master:
-    host: 127.0.0.1
-    port: 6379
-    db: 0
-  prepared_slave:
-    host: 127.0.0.1
-    port: 6379
-    db: 0
-rabbitmq:
-  host: localhost
-  port: 5672
-  user: guest
-  password: guest
-  vhost: /
-  queues:
-    mru: kandoo.mru
-    lru: kandoo.lru
-    canary_mru: kandoo.canary.mru
-    canary_lru: kandoo.canary.lru
-
 # NATS configuration (required for mode: nats_clickhouse or train-online)
 # nats:
 #   servers:
@@ -50,6 +17,10 @@ rabbitmq:
 #   password: null
 #   secure: false
 
+nats:
+  address: nats://localhost:4222
+  subject: surge
+
 forecast:
   horizons: [30, 60, 90]
   min_history_points: 8
@@ -63,4 +34,3 @@ collect_duration_minutes: 5.5
 # MLflow configuration (optional)
 # mlflow_tracking_uri: http://mlflow.snapp.ir
 # mlflow_experiment: pulsar-forecast
-
