@@ -5,4 +5,4 @@ numpy>=1.26.0
 h3>=4.1.0
 scikit-learn>=1.4.0
 pyyaml>=6.0.0
-
+nats-py>=2.12.0
