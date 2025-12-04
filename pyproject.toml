@@ -39,7 +39,10 @@ packages = ["src/pulsar", "src/pulsar_core"]
 include = ["src/pulsar_core/templates/forecast.html"]
 
 [dependency-groups]
-dev = ["pytest>=8.3.0", "ruff>=0.6.3"]
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.6.3",
+]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
