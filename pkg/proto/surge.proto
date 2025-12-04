@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package surge;
+
+option go_package = "/surge";
+
+message Surge {
+    string from = 1;
+    string to = 2;
+    uint32 city_id = 3;
+    int64 hex_id = 4;
+    uint32 service_type = 5;
+    int32 surge_percent = 6;
+    int32 surge_absolute = 7;
+    int32 cumulative_surge_percent = 8;
+    int32 cumulative_surge_absolute = 9;
+    int64 rule_id = 10;
+    int32 increase_factor = 11;
+    int32 increase_absolute = 12;
+    int32 decrease_factor = 13;
+    int32 decrease_absolute = 14;
+    uint32 resolution = 15;
+    string reason = 16;
+    string absolute_reason = 17;
+    uint32 expansion_level = 18;
+    float64 price_cnvr = 19;
+    float64 accept_rate = 20;
+    string created_date = 21;
+    string clickhouse_time = 22;
+    string logstash_time = 23;
+    uint64 hash = 24;
+}
