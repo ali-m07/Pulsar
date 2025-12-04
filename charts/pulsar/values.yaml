@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/owner/pulsar
+  repository: ghcr.io/ali-m07/pulsar
   tag: "latest"
   pullPolicy: IfNotPresent
   pullSecrets: []
@@ -56,24 +56,7 @@ tolerations: []
 
 config:
   path: /etc/pulsar/config.yaml
-  contents: |
-    redis:
-      raw_master: { host: "redis.raw-master", port: 6379, db: 0 }
-      raw_slave: { host: "redis.raw-slave", port: 6379, db: 0 }
-      prepared_master: { host: "redis.prepared-master", port: 6379, db: 0 }
-      prepared_slave: { host: "redis.prepared-slave", port: 6379, db: 0 }
-    rabbitmq:
-      host: "rabbitmq"
-      port: 5672
-      user: "guest"
-      password: "guest"
-      vhost: "/"
-      queues:
-        mru: "kandoo.mru"
-        lru: "kandoo.lru"
-        canary_mru: "kandoo.canary.mru"
-        canary_lru: "kandoo.canary.lru"
-    cache_dir: /var/pulsar/cache
+  contents: ""
 
 command:
   - pulsar
