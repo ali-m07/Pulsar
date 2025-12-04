@@ -8,3 +8,5 @@ node_modules/
 *.pyc
 data/
 *.log
+*.tar
+pulsar-latest.tar
