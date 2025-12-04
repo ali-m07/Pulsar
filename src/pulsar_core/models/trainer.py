@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
+from datetime import date, datetime
+from typing import List, Optional
 
 import mlflow
 import numpy as np
@@ -12,6 +13,7 @@ from sklearn.model_selection import train_test_split
 
 from ..config import PulsarConfig
 from ..store import TimeSeriesStore
+from .training_tracker import TrainingTracker
 
 
 @dataclass
@@ -29,6 +31,7 @@ class MLTrainer:
     def __init__(self, cfg: PulsarConfig):
         self.cfg = cfg
         self.store = TimeSeriesStore(cfg.ensure_cache_dir() / "timeseries")
+        self.tracker = TrainingTracker(cfg.ensure_cache_dir())
 
     def _load_dataset(self, service_types: List[int]) -> pd.DataFrame:
         frames: List[pd.DataFrame] = []
@@ -59,8 +62,45 @@ class MLTrainer:
         )
         return frame
 
-    def train(self, service_types: List[int], alpha: float = 0.3, l1_ratio: float = 0.1) -> TrainingResult:
+    def train(
+        self,
+        service_types: List[int],
+        alpha: float = 0.3,
+        l1_ratio: float = 0.1,
+        train_date: Optional[date] = None,
+        force: bool = False,
+    ) -> TrainingResult:
+        """
+        Train model on historical data.
+        
+        Args:
+            service_types: List of service types to train on
+            alpha: ElasticNet alpha parameter
+            l1_ratio: ElasticNet l1_ratio parameter
+            train_date: Date to mark as trained (defaults to today)
+            force: Force retraining even if date is already trained
+            
+        Returns:
+            TrainingResult with metrics and model URI
+        """
+        if train_date is None:
+            train_date = date.today()
+        
+        # Check if already trained
+        if not force and self.tracker.is_trained(train_date):
+            raise ValueError(
+                f"Date {train_date} has already been trained. Use --force to retrain."
+            )
+        
         dataset = self._load_dataset(service_types)
+        
+        # Extract date range from dataset
+        if not dataset.empty and "period_start" in dataset.columns:
+            min_date = dataset["period_start"].min().date()
+            max_date = dataset["period_start"].max().date()
+        else:
+            min_date = max_date = train_date
+        
         features = dataset[
             ["lag_demand", "lag_supply", "lag_acceptance", "price_conversion"]
         ].astype(float)
@@ -77,14 +117,24 @@ class MLTrainer:
         if self.cfg.mlflow_tracking_uri:
             mlflow.set_tracking_uri(self.cfg.mlflow_tracking_uri)
         mlflow.set_experiment(self.cfg.mlflow_experiment)
-        with mlflow.start_run(run_name="elasticnet-demand"):
+        
+        run_name = f"elasticnet-demand-{train_date.isoformat()}"
+        with mlflow.start_run(run_name=run_name):
             mlflow.log_param("alpha", alpha)
             mlflow.log_param("l1_ratio", l1_ratio)
+            mlflow.log_param("train_date", train_date.isoformat())
+            mlflow.log_param("data_min_date", min_date.isoformat())
+            mlflow.log_param("data_max_date", max_date.isoformat())
             mlflow.log_metric("mae", mae)
             mlflow.log_metric("rmse", rmse)
+            mlflow.log_metric("hexagons", dataset["hexagon"].nunique())
+            mlflow.log_metric("rows", len(dataset))
             model_info = mlflow.sklearn.log_model(model, artifact_path="model")
             model_uri = model_info.model_uri
 
+        # Mark as trained
+        self.tracker.mark_trained(train_date)
+        
         return TrainingResult(
             hexagons=dataset["hexagon"].nunique(),
             rows=len(dataset),

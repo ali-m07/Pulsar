@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Tuple
 
 import pandas as pd
 
@@ -20,41 +20,95 @@ class TimeSeriesStore:
         return self.root / f"{hexagon}_{service_type}.parquet"
 
     def append(self, snapshot: HexagonSnapshot) -> None:
-        path = self._path(snapshot.hexagon, snapshot.service_type)
-        frame = pd.DataFrame([snapshot.as_dict()])
-        frame["surge_percent"] = frame.get("surge_percent", 0.0).fillna(0.0)
-        frame["surge_absolute"] = frame.get("surge_absolute", 0.0).fillna(0.0)
+        """Append a single snapshot (kept for backward compatibility).
 
-        existing = None
-        if path.exists():
-            existing = pd.read_parquet(path)
+        Internally this delegates to append_many so that high-volume writers
+        can use an efficient, batched code path.
+        """
+        self.append_many([snapshot])
 
-        prev_cum_percent = 0.0
-        prev_cum_absolute = 0.0
-        if existing is not None and not existing.empty:
-            if "cumulative_surge_percent" in existing.columns:
-                prev_cum_percent = float(existing["cumulative_surge_percent"].iloc[-1])
-            if "cumulative_surge_absolute" in existing.columns:
-                prev_cum_absolute = float(existing["cumulative_surge_absolute"].iloc[-1])
+    def append_many(self, snapshots: List[HexagonSnapshot]) -> None:
+        """Efficiently append many snapshots.
 
-        if "cumulative_surge_percent" not in frame.columns or frame["cumulative_surge_percent"].isnull().all():
-            frame["cumulative_surge_percent"] = prev_cum_percent + frame["surge_percent"]
-        else:
-            frame["cumulative_surge_percent"] = frame["cumulative_surge_percent"].fillna(
-                prev_cum_percent + frame["surge_percent"]
-            )
+        This groups snapshots by (hexagon, service_type) so that for each
+        parquet file we:
+        - Read existing data at most once
+        - Concatenate in-memory rows once
+        - Write back a single sorted, de-duplicated frame
 
-        if "cumulative_surge_absolute" not in frame.columns or frame["cumulative_surge_absolute"].isnull().all():
-            frame["cumulative_surge_absolute"] = prev_cum_absolute + frame["surge_absolute"]
-        else:
-            frame["cumulative_surge_absolute"] = frame["cumulative_surge_absolute"].fillna(
-                prev_cum_absolute + frame["surge_absolute"]
-            )
+        This avoids quadratic behavior when ingesting millions of rows.
+        """
+        if not snapshots:
+            return
 
-        if existing is not None:
-            frame = pd.concat([existing, frame]).drop_duplicates(subset=["period_start"])
-        frame.sort_values("period_start", inplace=True)
-        frame.to_parquet(path, index=False)
+        # Group by target parquet path
+        grouped: Dict[Path, List[HexagonSnapshot]] = {}
+        for snap in snapshots:
+            path = self._path(snap.hexagon, snap.service_type)
+            grouped.setdefault(path, []).append(snap)
+
+        for path, snaps in grouped.items():
+            # Load existing frame if present
+            existing = None
+            prev_cum_percent = 0.0
+            prev_cum_absolute = 0.0
+            if path.exists():
+                existing = pd.read_parquet(path)
+                if not existing.empty:
+                    existing["period_start"] = pd.to_datetime(existing["period_start"])
+                    if "cumulative_surge_percent" in existing.columns:
+                        prev_cum_percent = float(existing["cumulative_surge_percent"].iloc[-1])
+                    if "cumulative_surge_absolute" in existing.columns:
+                        prev_cum_absolute = float(existing["cumulative_surge_absolute"].iloc[-1])
+
+            # Build new rows, updating cumulative fields incrementally
+            rows: List[Dict] = []
+            for snap in snaps:
+                row = snap.as_dict()
+                # Normalize and fill basic surge fields
+                surge_percent = row.get("surge_percent") or 0.0
+                surge_absolute = row.get("surge_absolute") or 0.0
+                row["surge_percent"] = float(surge_percent)
+                row["surge_absolute"] = float(surge_absolute)
+
+                # Update cumulative surge percent
+                if row.get("cumulative_surge_percent") is None:
+                    row["cumulative_surge_percent"] = prev_cum_percent + row["surge_percent"]
+                else:
+                    # Preserve explicit values, only filling missing ones
+                    if pd.isna(row["cumulative_surge_percent"]):
+                        row["cumulative_surge_percent"] = prev_cum_percent + row["surge_percent"]
+                prev_cum_percent = float(row["cumulative_surge_percent"])
+
+                # Update cumulative surge absolute
+                if row.get("cumulative_surge_absolute") is None:
+                    row["cumulative_surge_absolute"] = prev_cum_absolute + row["surge_absolute"]
+                else:
+                    if pd.isna(row["cumulative_surge_absolute"]):
+                        row["cumulative_surge_absolute"] = prev_cum_absolute + row["surge_absolute"]
+                prev_cum_absolute = float(row["cumulative_surge_absolute"])
+
+                rows.append(row)
+
+            frame = pd.DataFrame(rows)
+            if frame.empty:
+                continue
+
+            frame["period_start"] = pd.to_datetime(frame["period_start"])
+
+            to_concat = []
+            if existing is not None and not existing.empty and not existing.isna().all().all():
+                to_concat.append(existing)
+            if not frame.empty and not frame.isna().all().all():
+                to_concat.append(frame)
+
+            if to_concat:
+                frame_out = pd.concat(to_concat, ignore_index=True).drop_duplicates(subset=["period_start"])
+            else:
+                frame_out = frame
+
+            frame_out.sort_values("period_start", inplace=True)
+            frame_out.to_parquet(path, index=False)
 
     def history(self, hexagon: int, service_type: int, limit: int = 96) -> pd.DataFrame:
         path = self._path(hexagon, service_type)
