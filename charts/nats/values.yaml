@@ -1,0 +1,31 @@
+nats:
+  image: "nats:2.10"
+  cluster:
+    enabled: false
+  jetstream:
+    enabled: false
+  auth:
+    enabled: false
+
+  podSecurityContext:
+    enabled: true
+    runAsNonRoot: true
+    runAsUser: null
+
+  securityContext:
+    enabled: true
+    runAsNonRoot: true
+    runAsUser: null
+    allowPrivilegeEscalation: false
+
+# turn off the helper toolbox pod
+natsBox:
+  enabled: false
+
+# (for older chart versions the key is lowercase)
+natsbox:
+  enabled: false
+
+# also make sure Helm tests aren't rendered if you're using `helm template`
+tests:
+  enabled: false
