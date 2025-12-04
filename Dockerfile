@@ -41,8 +41,9 @@ COPY . .
 EXPOSE 8088
 
 # Health check for the API service
+# Use python from the virtual environment or system python3
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8088/healthz').read()" || exit 1
+    CMD /app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:8088/healthz').read()" || exit 1
 
 # Set entrypoint and default command
 ENTRYPOINT ["pulsar"]

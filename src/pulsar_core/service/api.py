@@ -40,6 +40,8 @@ def create_app(cfg: PulsarConfig) -> FastAPI:
                 "store_exists": store_path.exists(),
             }
         except Exception as exc:
+            # Return degraded status but don't fail the health check
+            # This allows the service to be marked as unhealthy but still accessible
             return {
                 "status": "degraded",
                 "error": str(exc),
